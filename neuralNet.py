@@ -1,72 +1,90 @@
 import tensorflow as tf
+import utils
 
-def weight_variable(shape):
-  initial = tf.truncated_normal(shape, stddev=0.1)
-  return tf.Variable(initial)
+class TwoLayerNeuralNet:
 
-def bias_variable(shape):
-  initial = tf.constant(0.1, shape=shape)
-  return tf.Variable(initial)
 
-sess = tf.InteractiveSession()
 
-x = tf.placeholder(tf.float32, shape=[8])
-y = tf.placeholder(tf.float32, shape=[2])
+    def __init__(self, input, layer1, layer2, output):
+        def weight_variable(shape):
+            initial = tf.truncated_normal(shape, stddev=0.1)
+            return tf.Variable(initial)
 
-layer1 = 20
-layer2 = 20
+        def bias_variable(shape):
+            initial = tf.constant(0.1, shape=shape)
+            return tf.Variable(initial)
 
-g=tf.reshape(x, [8,1])
-x_t=tf.transpose(g)
-W_fc1 = weight_variable([8, layer1])
-b_fc1 = bias_variable([layer1])
-h_fc1 = tf.nn.sigmoid(tf.matmul(x_t, W_fc1) + b_fc1)
+        # self.input = input
+        # self.layer1 = layer1
+        # self.layer2 = layer2
+        # self.output = output
 
-W_fc2 = weight_variable([layer1, layer2])
-b_fc2 = bias_variable([layer2])
-h_fc2 = tf.nn.sigmoid(tf.matmul(h_fc1, W_fc2) + b_fc2)
+        self.sess = tf.InteractiveSession()
 
-W_fc3 = weight_variable([layer2, 2])
-b_fc3 = bias_variable([2])
+        print("INIT")
 
-q_values = tf.matmul(h_fc2, W_fc3) + b_fc3
+        self.x = tf.placeholder(tf.float32, shape=[input])
+        self.y = tf.placeholder(tf.float32, shape=[output])
 
-action  = tf.arg_max(q_values, 1)
-cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=q_values, labels=y))
-# q_a_max = tf.reduce_max(q_values)
+        g=tf.reshape(self.x, [input,1])
+        self.x_t=tf.transpose(g)
+        self.W_fc1 = weight_variable([input, layer1])
+        self.b_fc1 = bias_variable([layer1])
+        self.h_fc1 = tf.nn.sigmoid(tf.matmul(self.x_t, self.W_fc1) + self.b_fc1)
 
-# loss = tf.square(target - q_a_max)
-with tf.name_scope('loss'):
-    # loss = tf.clip_by_value(loss, 0, 1
-    tf.summary.scalar('TD Error', cost)
+        self.W_fc2 = weight_variable([layer1, layer2])
+        self.b_fc2 = bias_variable([layer2])
+        self.h_fc2 = tf.nn.sigmoid(tf.matmul(self.h_fc1, self.W_fc2) + self.b_fc2)
 
-train_step = tf.train.AdamOptimizer(1e-2).minimize(cost)
+        self.W_fc3 = weight_variable([layer2, output])
+        self.b_fc3 = bias_variable([output])
 
-merged = tf.summary.merge_all()
-# cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=self.pred, labels=self.y))
-# train_writer = tf.summary.FileWriter('./train', sess.graph)
-sess.run(tf.initialize_all_variables())
+        q_values = tf.matmul(self.h_fc2, self.W_fc3) + self.b_fc3
 
-def getAction(state):
-    a = sess.run([action], feed_dict={x:state})
-    a=int(a[0])
-    return a
+        self.action  = tf.arg_max(q_values, 1)
+        self.cost = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=q_values, labels=self.y))
+        self.saver = tf.train.Saver()
+        self.train_step = tf.train.AdamOptimizer(1e-2).minimize(self.cost)
 
-def learn(train_X, train_Y):
-    # print("TRAINX",train_X)
-    for i in range(len(train_X)):
-        gg, summary = sess.run([train_step, merged], feed_dict={y: train_Y[i], x: train_X[i]})
-        # print("SUmmary",summary)
+        self.sess.run(tf.global_variables_initializer())
 
-    # train_writer.add_summary(summary, i)
 
-def predict(testx):
-    prediction = sess.run([action], feed_dict={ x: testx})
-    return prediction[0]
-# def test(train_X,train_Y):
-#     # Test model
-#     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(q_values, 1))
-#     # Calculate accuracy
-#     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
-#     acc = accuracy.eval({x: train_X, y: train_Y})
-#     print("Accuracy",acc)
+    def getAction(self, state):
+        a = self.sess.run([self.action], feed_dict={self.x:state})
+        a=int(a[0])
+        return a
+
+    def learn(self, train_X, train_Y):
+        # print("TRAINX",train_X)
+        for i in range(len(train_X)):
+            gg = self.sess.run([self.train_step], feed_dict={self.y: train_Y[i], self.x: train_X[i]})
+            # print("SUmmary",summary)
+
+        # train_writer.add_summary(summary, i)
+
+    def saveState(self, model_name):
+        with self.sess.as_default():
+            # Save the variables to disk.
+            utils.createFolderIfNotExist("./checkpoints/" + str(model_name))
+            save_path = self.saver.save(self.sess, "./checkpoints/" + str(model_name) + "/model.ckpt")
+            print("Model saved in file: %s" % save_path)
+
+    def loadState(self, model_name):
+        with self.sess.as_default():
+            # Restore variables from disk.
+            self.saver.restore(self.sess, "./checkpoints/" + str(model_name) + "/model.ckpt")
+            print("Model restored from file %s." % model_name)
+
+    def predict(self, testx):
+        prediction = self.sess.run([self.action], feed_dict={ self.x: testx})
+        return prediction[0]
+
+    def resetGraph(self):
+        self.sess.run(tf.global_variables_initializer())
+    # def test(train_X,train_Y):
+    #     # Test model
+    #     correct_prediction = tf.equal(tf.argmax(y, 1), tf.argmax(q_values, 1))
+    #     # Calculate accuracy
+    #     accuracy = tf.reduce_mean(tf.cast(correct_prediction, "float"))
+    #     acc = accuracy.eval({x: train_X, y: train_Y})
+    #     print("Accuracy",acc)

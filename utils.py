@@ -1,5 +1,6 @@
 from plotly.graph_objs import Scatter, Figure, Layout, Data
 from plotly import tools
+import os
 import plotly
 from plotly.offline import download_plotlyjs, init_notebook_mode, plot, iplot
 import numpy as np
@@ -18,3 +19,7 @@ def plotMultiSeries(array_y):
         fig.append_trace(Scatter(x=np.arange(len(y)), y=y), i, 1)
         i = i+1
     plot(fig)
+
+def createFolderIfNotExist(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
